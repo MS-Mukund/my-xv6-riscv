@@ -100,5 +100,5 @@ sys_uptime(void)
 uint64
 sys_strace(void)
 {
-  return strace();
+  return strace(); 
 }

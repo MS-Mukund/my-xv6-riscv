@@ -15,5 +15,6 @@ main(int argc, char **argv)
 //     kill(atoi(argv[i]));
 //   exit(0);
     strace();
-    return 0;
+
+    exit(0);
 }

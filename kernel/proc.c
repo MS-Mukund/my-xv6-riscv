@@ -663,7 +663,7 @@ int strace(void)
   intr_on();
 
   acquire(&p->lock);
-  // printf( "Hello, Peter\n");
+  printf( "Hello, Peter\n");
   release(&p->lock);
 
   return 0;
