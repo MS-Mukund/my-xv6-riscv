@@ -95,3 +95,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// my functions
+uint64
+sys_strace(void)
+{
+  return strace();
+}

@@ -654,3 +654,17 @@ procdump(void)
     printf("\n");
   }
 }
+
+int strace(void)
+{
+  struct proc *p = myproc();
+ 
+  //enable interrupts on this processor
+  intr_on();
+
+  acquire(&p->lock);
+  // printf( "Hello, Peter\n");
+  release(&p->lock);
+
+  return 0;
+}
