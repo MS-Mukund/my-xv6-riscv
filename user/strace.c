@@ -1,6 +1,7 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
+#include <stddef.h>
 
 int isdigit(char c)
 {
@@ -36,6 +37,7 @@ main(int argc, char **argv)
     argc -= 2;
     argv[argc][0] = '\0';
     argv[argc+1][0] = '\0';
+    argv[argc] = NULL;
 
     exec(argv[0], argv);
     exit(0);
