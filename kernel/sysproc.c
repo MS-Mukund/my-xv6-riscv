@@ -98,7 +98,7 @@ sys_uptime(void)
 
 // my functions
 uint64
-sys_strace(void)
+sys_trace(void)
 {
-  return strace(); 
+  return argint(0, &myproc()->tr_mask ); 
 }

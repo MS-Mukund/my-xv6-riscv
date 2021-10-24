@@ -295,6 +295,9 @@ fork(void)
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
+  // copy the mask for trace()
+  np->tr_mask = p->tr_mask;
+
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
@@ -655,7 +658,8 @@ procdump(void)
   }
 }
 
-int strace(void)
+// in proc.c, traces the current process
+int trace(int mask)
 {
   struct proc *p = myproc();
  
