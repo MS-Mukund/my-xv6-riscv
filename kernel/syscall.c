@@ -113,28 +113,28 @@ struct syscallentry
 };
 
 static struct syscallentry syscalltable[] = {
-{"fork",   0},
-{"exit",   1},
-{"wait",   1},
-{"pipe",   0},
-{"read",   3},
-{"kill",   2},
-{"exec",   2},
-{"fstat",  1},
-{"chdir",  1},
-{"dup",    1},
-{"getpid", 0},
-{"sbrk",   1},
-{"sleep",  1},
-{"uptime", 0},
-{"open",   2},
-{"write",  3},
-{"mknod",  3},
-{"unlink", 1},
-{"link",   2},
-{"mkdir",  1},
-{"close",  1},
-{"trace",  1}
+[SYS_fork] {"fork",   0},
+[SYS_exit] {"exit",   1},
+[SYS_wait] {"wait",   1},
+[SYS_pipe] {"pipe",   0},
+[SYS_read] {"read",   3},
+[SYS_kill] {"kill",   2},
+[SYS_exec] {"exec",   2},
+[SYS_fstat] {"fstat",  1},
+[SYS_chdir] {"chdir",  1},
+[SYS_dup] {"dup",    1},
+[SYS_getpid] {"getpid", 0},
+[SYS_sbrk] {"sbrk",   1},
+[SYS_sleep] {"sleep",  1},
+[SYS_uptime] {"uptime", 0},
+[SYS_open] {"open",   2},
+[SYS_write] {"write",  3},
+[SYS_mknod] {"mknod",  3},
+[SYS_unlink] {"unlink", 1},
+[SYS_link] {"link",   2},
+[SYS_mkdir] {"mkdir",  1},
+[SYS_close] {"close",  1},
+[SYS_trace] {"trace",  1}
 };
 
 static uint64 (*syscalls[])(void) = {
@@ -183,7 +183,7 @@ syscall(void)
             printf( "%d ", argraw(i) );
         }
 
-        printf( ") -> %d\n", p->trapframe->a0 );
+        printf( "\b) -> %d\n", p->trapframe->a0 );
     }
     ///////
 
