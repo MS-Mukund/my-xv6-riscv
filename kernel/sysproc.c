@@ -102,3 +102,9 @@ sys_trace(void)
 {
   return argint(0, &myproc()->tr_mask ); 
 }
+
+uint64
+sys_setpriority(void)
+{
+  return argint(0, &myproc()->tr_mask ); 
+}

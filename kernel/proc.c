@@ -6,6 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
+// gives us the type of scheduler we are using
+int sched_type;
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -119,6 +121,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->ctime = ticks;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -440,31 +443,104 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
+  sched_type = SCHED_RR;
   struct proc *p;
   struct cpu *c = mycpu();
   
   c->proc = 0;
   for(;;){
-    // Avoid deadlock by ensuring that devices can interrupt.
-    intr_on();
+    if( sched_type == SCHED_RR )  // round robin scheduling algo - default
+    {
+      // Avoid deadlock by ensuring that devices can interrupt.
+      intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+        release(&p->lock);
+      }
+    }
+
+    else if( sched_type == SCHED_FCFS ) // FCFS scheduling algo
+    {
+      // Avoid deadlock by ensuring that devices can interrupt.
+      // printf("scheduler: FCFS scheduling algo\n");
+      intr_on();
+      struct proc *min_proc = 0;
+      
+      // printf("beginning of process table loop\n");
+      for(p = proc; p < &proc[NPROC]; p++) {
+        // printf("looping: p->state = %d\n", p->state);        
+        acquire(&p->lock);
+        if( p->state == RUNNABLE ) // ignore init and sh
+        {
+          if( min_proc == 0 || p->ctime < min_proc->ctime )
+          {
+            if( min_proc != 0 )
+              release(&min_proc->lock);
+
+            min_proc = p;
+            continue;
+          }
+        }
+        release(&p->lock);
+      }
+      p = min_proc;
+
+       // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
+        // printf("MinProc: %p\n", min_proc);
+        if( min_proc == 0)
+          continue;
+
         p->state = RUNNING;
         c->proc = p;
+        // printf("switching to process %d\n", min_proc->pid);
         swtch(&c->context, &p->context);
+        // printf("switched back to scheduler\n");
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
+        release(&p->lock);
+    }
+
+    else if( sched_type == SCHED_PBS )
+    {
+      // Avoid deadlock by ensuring that devices can interrupt.
+      intr_on();
+
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+        release(&p->lock);
       }
-      release(&p->lock);
     }
   }
+
 }
 
 // Switch to scheduler.  Must hold only p->lock
@@ -658,17 +734,18 @@ procdump(void)
   }
 }
 
-// in proc.c, traces the current process
-int trace(int mask)
-{
-  struct proc *p = myproc();
+// // in proc.c, traces the current process
+// int trace(int mask)
+// {
+//   struct proc *p = myproc();
  
-  //enable interrupts on this processor
-  intr_on();
+//   //enable interrupts on this processor
+//   intr_on();
 
-  acquire(&p->lock);
-  printf( "Hello, Peter\n");
-  release(&p->lock);
+//   acquire(&p->lock);
+//   printf( "Hello, Peter\n");
+//   release(&p->lock);
 
-  return 0;
-}
+//   return 0;
+// }
+
