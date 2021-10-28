@@ -110,3 +110,8 @@ trace:
  li a7, SYS_trace
  ecall
  ret
+.global setpriority
+setpriority:
+ li a7, SYS_setpriority
+ ecall
+ ret

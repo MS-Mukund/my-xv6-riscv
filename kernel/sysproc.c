@@ -104,7 +104,22 @@ sys_trace(void)
 }
 
 uint64
-sys_setpriority(void)
+sys_setpriority(void) 
 {
-  return argint(0, &myproc()->tr_mask ); 
+  int pid;
+  int priority;
+  if(argint(0, &priority) < 0)
+    return -1;
+  if(argint(1, &pid) < 0)
+    return -1;
+
+  // set priority and reset niceness value to 5 
+  int old_priority = setpriority(priority, pid, 5);
+  if( old_priority < 0 )
+  {
+    printf( "setpriority failed: process does not exist\n");
+    return -1;
+  }
+
+  return old_priority;
 }

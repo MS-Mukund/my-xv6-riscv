@@ -734,18 +734,28 @@ procdump(void)
   }
 }
 
-// // in proc.c, traces the current process
-// int trace(int mask)
-// {
-//   struct proc *p = myproc();
- 
-//   //enable interrupts on this processor
-//   intr_on();
+// in proc.c, traces the current process
+int trace(int mask)
+{
+  return 0;
+}
 
-//   acquire(&p->lock);
-//   printf( "Hello, Peter\n");
-//   release(&p->lock);
+int
+setpriority(int priority, int pid, int niceness)
+{
+  struct proc *p;
 
-//   return 0;
-// }
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
 
+    if(p->pid == pid) {
+      int old = p->priority;
+      p->priority = priority;
+      p->niceness = niceness;
+      release(&p->lock);
+      return old;
+    }
+    release(&p->lock);
+  }
+  return -1;
+}

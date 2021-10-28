@@ -113,9 +113,13 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  // mask for strace()
+  // mask for trace()
   int tr_mask;
 
   // FCFS
   int ctime;    // time of creation.
+
+  // PBS
+  int priority; // priority of the process
+  int niceness; // niceness (percentage of time spent sleeping)
 };

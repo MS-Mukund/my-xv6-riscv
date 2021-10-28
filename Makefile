@@ -126,6 +126,7 @@ UPROGS=\
 	$U/_ls\
 	$U/_mkdir\
 	$U/_rm\
+	$U/_setpriority\
 	$U/_sh\
 	$U/_strace\
 	$U/_stressfs\

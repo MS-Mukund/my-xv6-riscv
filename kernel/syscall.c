@@ -105,6 +105,7 @@ extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void);
+extern uint64 sys_setpriority(void);
 
 struct syscallentry
 { 
@@ -134,7 +135,8 @@ static struct syscallentry syscalltable[] = {
 [SYS_link] {"link",   2},
 [SYS_mkdir] {"mkdir",  1},
 [SYS_close] {"close",  1},
-[SYS_trace] {"trace",  1}
+[SYS_trace] {"trace",  1},
+[SYS_setpriority] {"setpriority", 2},
 };
 
 static uint64 (*syscalls[])(void) = {
@@ -160,6 +162,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace,
+[SYS_setpriority] sys_setpriority,
 };
 
 void
@@ -170,16 +173,17 @@ syscall(void)
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    p->trapframe->a0 = syscalls[num]();
 
+    int first_arg = p->trapframe->a0;
+    p->trapframe->a0 = syscalls[num]();
+    
     // print trace
     int is_set = 1 << num;
     if( p->tr_mask & is_set ) {
         printf( "%d: syscall %s", p->pid, syscalltable[num].name );
         
-        printf( "(");
-
-        for( int i = 0; i < syscalltable[num].numargs; i++ ) {
+        printf( "(%d ", first_arg);
+        for( int i = 1; i < syscalltable[num].numargs; i++ ) {
             printf( "%d ", argraw(i) );
         }
 
