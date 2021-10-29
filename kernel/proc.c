@@ -6,9 +6,6 @@
 #include "proc.h"
 #include "defs.h"
 
-// gives us the type of scheduler we are using
-int sched_type;
-
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -445,16 +442,16 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  sched_type = SCHED_PBS;
   struct proc *p;
   struct cpu *c = mycpu();
   
   c->proc = 0;
   for(;;){
-    if( sched_type == SCHED_RR )  // round robin scheduling algo - default
-    {
-      // Avoid deadlock by ensuring that devices can interrupt.
-      intr_on();
+    // Avoid deadlock by ensuring that devices can interrupt.
+    intr_on();
+
+    // round robin -- default
+    #ifdef RR 
 
       for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
@@ -473,11 +470,10 @@ scheduler(void)
         }
         release(&p->lock);
       }
-    }
+    #endif
 
-    else if( sched_type == SCHED_FCFS ) // FCFS scheduling algo
-    {
-      intr_on();
+    // FCFS scheduler
+    #ifdef FCFS
       struct proc *min_proc = 0;
       
       for(p = proc; p < &proc[NPROC]; p++) {
@@ -510,11 +506,10 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
       release(&p->lock);
-    }
+    #endif
 
-    else if( sched_type == SCHED_PBS )
-    {
-      intr_on();
+    // Priority scheduler
+    #ifdef PBS
       struct proc *min_proc = 0;
       int top_priority = 105, dp;
       
@@ -569,14 +564,12 @@ scheduler(void)
 
       c->proc = 0;
       release(&p->lock);
-      
-    }
+    #endif
 
     // Multi-level feedback queue scheduler
-    else if(sched_type == SCHED_MLFQ )
-    {
-
-    }
+    #ifdef MLFQ 
+    
+    #endif
   }
 }
 

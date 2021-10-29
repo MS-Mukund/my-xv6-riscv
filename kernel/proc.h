@@ -1,10 +1,3 @@
-#define SCHED_FCFS 1
-#define SCHED_PBS  2
-#define SCHED_MLFQ 3
-#define SCHED_RR   0
-
-extern int sched_type;
-
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;

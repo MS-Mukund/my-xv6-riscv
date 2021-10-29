@@ -77,8 +77,10 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && ( sched_type != SCHED_FCFS || sched_type != SCHED_PBS ) )
+  #if defined RR || defined MLFQ
+  if(which_dev == 2 )
     yield();
+  #endif
 
   usertrapret();
 }
@@ -150,16 +152,17 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING && ( sched_type != SCHED_FCFS || sched_type != SCHED_PBS ) )
+  #if defined RR || defined MLFQ
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING )
     yield();
+  #endif
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
-  if( sched_type != SCHED_FCFS)
-  {
+  #if defined RR || defined MLFQ
     w_sepc(sepc);
     w_sstatus(sstatus);
-  }
+  #endif
 }
 
 void
@@ -170,8 +173,9 @@ clockintr()
   wakeup(&ticks);
   release(&tickslock);
   
-  if(sched_type == SCHED_PBS)
+  #ifdef PBS
     update_time();
+  #endif
 }
 
 // check if it's an external interrupt or software interrupt,
