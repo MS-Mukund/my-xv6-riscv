@@ -106,6 +106,7 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_setpriority(void);
+extern uint64 sys_waitx(void);
 
 struct syscallentry
 { 
@@ -137,6 +138,7 @@ static struct syscallentry syscalltable[] = {
 [SYS_close] {"close",  1},
 [SYS_trace] {"trace",  1},
 [SYS_setpriority] {"setpriority", 2},
+[SYS_waitx]   {"waitx", 3},
 };
 
 static uint64 (*syscalls[])(void) = {
@@ -163,6 +165,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace,
 [SYS_setpriority] sys_setpriority,
+[SYS_waitx]   sys_waitx,
 };
 
 void

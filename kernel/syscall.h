@@ -22,3 +22,4 @@
 #define SYS_close  21
 #define SYS_trace  22
 #define SYS_setpriority 23
+#define SYS_waitx 24

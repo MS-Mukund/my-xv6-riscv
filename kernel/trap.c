@@ -136,7 +136,9 @@ void
 kerneltrap()
 {
   int which_dev = 0;
+  #if defined RR || defined MLFQ
   uint64 sepc = r_sepc();
+  #endif
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
   

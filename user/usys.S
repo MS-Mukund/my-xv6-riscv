@@ -115,3 +115,8 @@ setpriority:
  li a7, SYS_setpriority
  ecall
  ret
+.global waitx
+waitx:
+ li a7, SYS_waitx
+ ecall
+ ret

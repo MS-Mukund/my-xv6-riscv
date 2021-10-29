@@ -111,6 +111,10 @@ struct proc {
 
   // FCFS
   int ctime;    // time of creation.
+  
+  //waitx
+  uint rtime;                   // How long the process ran for
+  uint etime;                   // When did the process exited
 
   // PBS
   int priority; // priority of the process
