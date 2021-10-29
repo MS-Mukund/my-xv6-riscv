@@ -526,7 +526,7 @@ scheduler(void)
         {
           if( p->num_scheduled == 0)
             p->niceness = 5;
-          else    // sleeping time is taken as the total time between consecutive schedulings of the process - runtime of the process
+          else    // sleeping time is taken as the time when process is in SLEEPING state between consecutive schedulings of the process
             p->niceness = 10*( (p->sleep_time)/(p->sleep_time + p->runtime) ); 
           
           dp = p->priority - p->niceness + 5;
@@ -561,6 +561,7 @@ scheduler(void)
       p->num_scheduled++;       // updating variables for next scheduling
       p->start_time = ticks;
       p->runtime = 0;
+      p->sleep_time = 0;
 
       c->proc = p;
 
