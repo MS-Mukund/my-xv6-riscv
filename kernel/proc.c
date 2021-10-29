@@ -8,6 +8,7 @@
 
 // gives us the type of scheduler we are using
 int sched_type;
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -246,6 +247,7 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  p->num_scheduled = 0;     // it has been scheduled for 0 times
 
   release(&p->lock);
 }
@@ -443,7 +445,7 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  sched_type = SCHED_RR;
+  sched_type = SCHED_PBS;
   struct proc *p;
   struct cpu *c = mycpu();
   
@@ -461,6 +463,7 @@ scheduler(void)
           // to release its lock and then reacquire it
           // before jumping back to us.
           p->state = RUNNING;
+          p->num_scheduled++;
           c->proc = p;
           swtch(&c->context, &p->context);
 
@@ -474,16 +477,13 @@ scheduler(void)
 
     else if( sched_type == SCHED_FCFS ) // FCFS scheduling algo
     {
-      // Avoid deadlock by ensuring that devices can interrupt.
-      // printf("scheduler: FCFS scheduling algo\n");
       intr_on();
       struct proc *min_proc = 0;
       
-      // printf("beginning of process table loop\n");
       for(p = proc; p < &proc[NPROC]; p++) {
-        // printf("looping: p->state = %d\n", p->state);        
+
         acquire(&p->lock);
-        if( p->state == RUNNABLE ) // ignore init and sh
+        if( p->state == RUNNABLE ) // if process is runnable
         {
           if( min_proc == 0 || p->ctime < min_proc->ctime )
           {
@@ -498,49 +498,104 @@ scheduler(void)
       }
       p = min_proc;
 
-       // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        // printf("MinProc: %p\n", min_proc);
-        if( min_proc == 0)
-          continue;
+      if( min_proc == 0)
+        continue;
 
-        p->state = RUNNING;
-        c->proc = p;
-        // printf("switching to process %d\n", min_proc->pid);
-        swtch(&c->context, &p->context);
-        // printf("switched back to scheduler\n");
+      p->state = RUNNING;
+      p->num_scheduled++;
+      c->proc = p;
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        release(&p->lock);
+      swtch(&c->context, &p->context);
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      release(&p->lock);
     }
 
     else if( sched_type == SCHED_PBS )
     {
-      // Avoid deadlock by ensuring that devices can interrupt.
       intr_on();
-
+      struct proc *min_proc = 0;
+      int top_priority = 105, dp;
+      
       for(p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
-        if(p->state == RUNNABLE) {
-          // Switch to chosen process.  It is the process's job
-          // to release its lock and then reacquire it
-          // before jumping back to us.
-          p->state = RUNNING;
-          c->proc = p;
-          swtch(&c->context, &p->context);
 
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
-          c->proc = 0;
+        acquire(&p->lock);
+
+        if( p->state == RUNNABLE ) 
+        {
+          if( p->num_scheduled == 0)
+            p->niceness = 5;
+          else    // sleeping time is taken as the total time between consecutive schedulings of the process - runtime of the process
+            p->niceness = 10*( (p->sleep_time)/(p->sleep_time + p->runtime) ); 
+          
+          dp = p->priority - p->niceness + 5;
+          if( dp < 0)
+            dp = 0;
+          if( dp > 100 )
+            dp = 100;
+
+          // priority for scheduling, if equal dynamic priorities, then check no of times scheduled
+          // if that also is equal, then check on basis of creation time
+          if( min_proc == 0 ||
+              dp < top_priority || 
+              ( dp == top_priority && min_proc->num_scheduled < p->num_scheduled ) || 
+              (dp == top_priority && min_proc->num_scheduled == p->num_scheduled && p->ctime < min_proc->ctime) )
+          {
+            if( min_proc != 0 )
+              release(&min_proc->lock);
+
+            dp = top_priority;
+            min_proc = p;
+            continue;
+          }
         }
         release(&p->lock);
       }
+      p = min_proc;
+
+      if( min_proc == 0)
+        continue;
+
+      p->state = RUNNING;
+      p->num_scheduled++;       // updating variables for next scheduling
+      p->start_time = ticks;
+      p->runtime = 0;
+
+      c->proc = p;
+
+      swtch(&c->context, &p->context);
+
+      c->proc = 0;
+      release(&p->lock);
+      
+    }
+
+    // Multi-level feedback queue scheduler
+    else if(sched_type == SCHED_MLFQ )
+    {
+
     }
   }
+}
 
+uint64 
+update_time(void)
+{
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNING) {
+          p->runtime++;
+        }
+        else if(p->state == SLEEPING) {
+          p->sleep_time++;
+        }
+        release(&p->lock);
+      }
+  
+  return 0;
 }
 
 // Switch to scheduler.  Must hold only p->lock
@@ -622,6 +677,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  p->sleep_time = 0;
 
   sched();
 

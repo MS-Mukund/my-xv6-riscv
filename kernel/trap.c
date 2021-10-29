@@ -77,7 +77,7 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && ( sched_type != SCHED_FCFS ) )
+  if(which_dev == 2 && ( sched_type != SCHED_FCFS || sched_type != SCHED_PBS ) )
     yield();
 
   usertrapret();
@@ -150,7 +150,7 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING && ( sched_type != SCHED_FCFS ) )
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING && ( sched_type != SCHED_FCFS || sched_type != SCHED_PBS ) )
     yield();
 
   // the yield() may have caused some traps to occur,
@@ -169,6 +169,9 @@ clockintr()
   ticks++;
   wakeup(&ticks);
   release(&tickslock);
+  
+  if(sched_type == SCHED_PBS)
+    update_time();
 }
 
 // check if it's an external interrupt or software interrupt,

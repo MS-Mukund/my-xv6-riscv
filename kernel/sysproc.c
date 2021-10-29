@@ -121,5 +121,10 @@ sys_setpriority(void)
     return -1;
   }
 
+  else if( old_priority > priority )    // reschedule if priority has increased
+  {
+    yield();
+  }
+
   return old_priority;
 }

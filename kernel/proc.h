@@ -122,4 +122,9 @@ struct proc {
   // PBS
   int priority; // priority of the process
   int niceness; // niceness (percentage of time spent sleeping)
+
+  int num_scheduled;  // no of times a process has been scheduled
+  int start_time;     // time when process started in the last run
+  int runtime;        // CPU time given to it in the last run
+  int sleep_time;     // sleep time from the last run
 };
