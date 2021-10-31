@@ -150,8 +150,12 @@ found:
   #ifdef MLFQ
   add_to_queue(p->pid,0);
   p->queue_no = 0;
-  p->wtime = 0;
+  for( int i = 0; i < 5; i++ ) {
+    p->q[i] = 0;
+  }
   #endif
+  p->wtime = 0;
+  p->num_scheduled = 0;     // it has been scheduled for 0 times
   p->state = USED;
   p->ctime = ticks;
 
@@ -280,8 +284,6 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
-  p->num_scheduled = 0;     // it has been scheduled for 0 times
-
   release(&p->lock);
 }
 
@@ -504,6 +506,7 @@ scheduler(void)
           // to release its lock and then reacquire it
           // before jumping back to us.
           p->state = RUNNING;
+          p->num_scheduled++;
           c->proc = p;
           swtch(&c->context, &p->context);
 
@@ -637,6 +640,7 @@ scheduler(void)
 
           if(p->state == RUNNABLE && p->pid == pid) {
             p->state = RUNNING;
+            p->num_scheduled++;
             p->sleep_time = 0;
             p->runtime = 0;
             p->start_time = ticks;
@@ -664,27 +668,25 @@ update_time(void)
 {
   struct proc *p;
   // printf("update time\n");
-  int stat = 0;
-  int age =0;
+  // int stat = 0;
+  // int age =0;
   for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if(p->state == RUNNING) {
           p->runtime++;
           p->rtime++;
-          stat = 1;
+          // stat = 1;
         }
         else
         {
-          #ifdef MLFQ
           p->wtime++;
-          #endif
           if(p->state == SLEEPING) {
             p->sleep_time++;
 
             #ifdef MLFQ
             if( p->wtime >= AGING )
             {
-              age = 1;
+              // age = 1;
               p->wtime = 0;
               if( p->queue_no == 0 )
               {
@@ -699,14 +701,18 @@ update_time(void)
             #endif
           }
         }
+        #ifdef MLFQ
+        if( p->queued )
+          p->q[p->queue_no]++;
+        #endif
         release(&p->lock);
       }
   // if( stat == 0 )
   //   printf("a ");
-  if( stat == 0 && age == 1 )
-    printf("No process running\n");
-  if( age == 1 )
-    printf("aging\n");
+  // if( stat == 0 && age == 1 )
+  //   printf("No process running\n");
+  // if( age == 1 )
+  //   printf("aging\n");
     
   return 0;
 }
@@ -791,7 +797,7 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   p->state = SLEEPING;
   #ifdef MLFQ
-  printf("sleeping\n");
+  // printf("sleeping\n");
   remove_from_queue(p->pid, p->queue_no);
   #endif
   p->sleep_time = 0;
@@ -819,7 +825,7 @@ wakeup(void *chan)
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
         #ifdef MLFQ
-        printf("woken\n");
+        // printf("woken\n");
         add_to_queue(p->pid, p->queue_no);
         #endif
       }
@@ -889,16 +895,27 @@ void
 procdump(void)
 {
   static char *states[] = {
-  [UNUSED]    "unused",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+  [UNUSED]    "unused  ",
+  [SLEEPING]  "sleeping",
+  [RUNNABLE]  "runnable",
+  [RUNNING]   "running ",
+  [ZOMBIE]    "zombie  "
   };
   struct proc *p;
   char *state;
 
   printf("\n");
+  #ifdef PBS
+  printf("PID priority state rtime wtime nrun name\n");
+  #endif
+
+  #ifdef MLFQ
+  printf("PID priority state rtime wtime nrun q0 q1 q2 q3 q4 name\n");
+  #endif
+
+  #if defined RR || FCFS 
+  printf("PID   state rtime wtime nrun name\n");
+  #endif
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -906,8 +923,39 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
-    printf("\n");
+    
+    if( p->runtime + p->sleep_time == 0)
+      p->niceness = 5;
+    else
+      p->niceness = 10*( (p->sleep_time)/(p->sleep_time + p->runtime) );
+
+    int priority;
+    priority--;
+    #ifdef PBS
+    priority = p->priority + 5 - p->niceness; 
+    if( priority < 0 ) priority = 0;
+    if( priority > 100 ) priority = 100;
+    #endif
+
+    #ifdef MLFQ
+    priority = p->queue_no;
+    if( p->queued == 0) priority = -1;
+    #endif
+
+    printf("%d ", p->pid);
+    #if defined PBS || defined MLFQ
+    printf("     %d   ", priority);
+    #endif
+
+    printf("%s   %d   %d   %d  ", state, p->rtime, p->wtime, p->num_scheduled);
+
+    #ifdef MLFQ
+    for( int i = 0; i < 5; i++){
+      printf("%d  ", p->q[i]);
+    }
+    #endif
+
+    printf("%s\n", p->name);
   }
 }
 

@@ -87,9 +87,11 @@ usertrap(void)
   {    
     // printf("p q ");
     remove_from_queue(p->pid,p->queue_no);
+    p->queued = 0;
     if( p->queue_no < 4 )
       p->queue_no++;  
     add_to_queue(p->pid,p->queue_no);
+    p->queued = 1;
     // printf("time ex pq=%d\n", p->queue_no);
 
     yield();
@@ -179,9 +181,11 @@ kerneltrap()
   {
     struct proc *p = myproc();
     remove_from_queue(p->pid,p->queue_no);
+    p->queued = 0;
     if( p->queue_no < 4 )
       p->queue_no++;  
     add_to_queue(p->pid,p->queue_no);
+    p->queued = 1;
 
     yield();
   }

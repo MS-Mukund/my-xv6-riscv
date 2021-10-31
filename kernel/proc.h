@@ -126,5 +126,10 @@ struct proc {
 
   //MLFQ
   int queue_no;
+  int queued;
   int wtime;
+
+  #ifdef MLFQ
+  int q[5];
+  #endif
 };
