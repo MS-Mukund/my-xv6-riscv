@@ -659,6 +659,38 @@ scheduler(void)
       }
       // printf("empty\n");
     }    
+
+    int is_emp = 1;
+    for( int i = 0; i < MLFQ_LEVELS; i++ )
+    {
+      if( !is_queue_empty(i) )
+      {
+        is_emp = 0;
+        break;
+      }
+    }
+
+    if( is_emp )
+    {
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          p->state = RUNNING;
+          p->num_scheduled++;
+          p->sleep_time = 0;
+          p->runtime = 0;
+          p->start_time = ticks;
+          p->queue_no = 0;
+
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          c->proc = 0;
+          release(&p->lock);
+          break;
+        }
+        release(&p->lock);
+      }
+    }
     #endif
   }
 }
@@ -977,6 +1009,8 @@ setpriority(int priority, int pid, int niceness)
       int old = p->priority;
       p->priority = priority;
       p->niceness = niceness;
+      p->sleep_time = 0;
+      p->runtime = 0;
       release(&p->lock);
       return old;
     }
