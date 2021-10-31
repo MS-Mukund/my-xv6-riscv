@@ -6,6 +6,35 @@
 #include "proc.h"
 #include "defs.h"
 
+#define MLFQ_SIZE      78   // size of each queue in MLFQ
+#define MLFQ_LEVELS     5   // number of queues in MLFQ
+#define AGING          40   // increase priority after this much wtime
+// maintains the list of pids processes to be run
+// uses a circular array
+// multi_queue[i][MLFQ_SIZE] = start index
+// multi_queue[i][MLFQ_SIZE+1] = end index
+// end index means just after the end (like vec.end()).
+// Therefore, if start == end, then the queue is empty
+// if pid == -1, empty slot
+int multi_queue[MLFQ_LEVELS][MLFQ_SIZE+2] = {
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, 0, 0}, 
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, 0, 0}, 
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, 0, 0}, 
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, 0, 0}, 
+    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+    -1, -1, -1, -1, 0, 0}
+    };
+
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -118,6 +147,11 @@ allocproc(void)
 
 found:
   p->pid = allocpid();
+  #ifdef MLFQ
+  add_to_queue(p->pid,0);
+  p->queue_no = 0;
+  p->wtime = 0;
+  #endif
   p->state = USED;
   p->ctime = ticks;
 
@@ -322,6 +356,10 @@ fork(void)
   np->state = RUNNABLE;
   release(&np->lock);
 
+  #ifdef MLFQ
+  if( myproc()->queue_no > 0 )  // pre-empt curproc since it's of lower priority now
+     yield();
+  #endif
   return pid;
 }
 
@@ -377,6 +415,9 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  #ifdef MLFQ
+  remove_from_queue(p->pid,p->queue_no);
+  #endif
   p->etime = ticks;
 
   release(&wait_lock);
@@ -463,7 +504,6 @@ scheduler(void)
           // to release its lock and then reacquire it
           // before jumping back to us.
           p->state = RUNNING;
-          p->num_scheduled++;
           c->proc = p;
           swtch(&c->context, &p->context);
 
@@ -570,8 +610,51 @@ scheduler(void)
     #endif
 
     // Multi-level feedback queue scheduler
-    #ifdef MLFQ 
-    
+    #ifdef MLFQ
+    int ct = 0;
+    for( ct = 0; ct < MLFQ_LEVELS; ct++ )
+    {
+      while( !is_queue_empty(ct) )
+      {
+        int sm1 = 0;    
+        for( sm1 = 0; sm1 < ct; sm1++ )
+        {
+          if( !is_queue_empty(sm1) )
+            break;
+        }
+        if(sm1 != ct)
+        {
+          ct = sm1;
+          break;
+        }
+
+        int pid = get_curproc_pid(ct);
+        if( pid == -1 )
+          continue;
+
+        for(p = proc; p < &proc[NPROC]; p++) {
+          acquire(&p->lock);
+
+          if(p->state == RUNNABLE && p->pid == pid) {
+            p->state = RUNNING;
+            p->sleep_time = 0;
+            p->runtime = 0;
+            p->start_time = ticks;
+            p->queue_no = ct;
+
+            c->proc = p;
+            //  printf("bef");
+            swtch(&c->context, &p->context);
+            // printf("xyz\n");
+            c->proc = 0;
+            release(&p->lock);
+            break;
+          }
+          release(&p->lock);
+        }
+      }
+      // printf("empty\n");
+    }    
     #endif
   }
 }
@@ -580,19 +663,51 @@ uint64
 update_time(void)
 {
   struct proc *p;
-
+  // printf("update time\n");
+  int stat = 0;
+  int age =0;
   for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if(p->state == RUNNING) {
           p->runtime++;
           p->rtime++;
+          stat = 1;
         }
-        else if(p->state == SLEEPING) {
-          p->sleep_time++;
+        else
+        {
+          #ifdef MLFQ
+          p->wtime++;
+          #endif
+          if(p->state == SLEEPING) {
+            p->sleep_time++;
+
+            #ifdef MLFQ
+            if( p->wtime >= AGING )
+            {
+              age = 1;
+              p->wtime = 0;
+              if( p->queue_no == 0 )
+              {
+                release(&p->lock);
+                continue;
+              }
+
+              remove_from_queue(p->pid, p->queue_no);
+              p->queue_no--;              
+              add_to_queue(p->pid, p->queue_no);
+            }
+            #endif
+          }
         }
         release(&p->lock);
       }
-  
+  // if( stat == 0 )
+  //   printf("a ");
+  if( stat == 0 && age == 1 )
+    printf("No process running\n");
+  if( age == 1 )
+    printf("aging\n");
+    
   return 0;
 }
 
@@ -675,6 +790,10 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  #ifdef MLFQ
+  printf("sleeping\n");
+  remove_from_queue(p->pid, p->queue_no);
+  #endif
   p->sleep_time = 0;
 
   sched();
@@ -693,12 +812,16 @@ void
 wakeup(void *chan)
 {
   struct proc *p;
-
+ 
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p != myproc()){
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        #ifdef MLFQ
+        printf("woken\n");
+        add_to_queue(p->pid, p->queue_no);
+        #endif
       }
       release(&p->lock);
     }
@@ -863,4 +986,126 @@ waitx(uint64 addr, uint* rtime, uint* wtime)
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
+}
+
+int 
+add_to_queue(int pid, int queue_no)
+{
+  if( pid < 0)
+  {
+    printf("pid is invalid\n");
+    return -1;
+  }
+  else if( queue_no < 0 || queue_no > 4)
+  {
+    printf("queue_no is invalid\n");
+    return -2;
+  }
+
+	if( multi_queue[queue_no][MLFQ_SIZE] == -1 || multi_queue[queue_no][MLFQ_SIZE+1] == -1)		
+	{
+		multi_queue[queue_no][MLFQ_SIZE] = 0;
+		multi_queue[queue_no][MLFQ_SIZE+1] = 0;
+	}
+
+	int end = multi_queue[queue_no][MLFQ_SIZE + 1];
+
+	multi_queue[queue_no][end] = pid;  // add pid to the end of the queue
+	end = (end + 1) % MLFQ_SIZE;
+  multi_queue[queue_no][MLFQ_SIZE + 1] = end;
+
+  return 0;
+}
+
+int
+remove_from_queue(int pid, int queue_no)
+{
+	if( pid < 0)
+	{
+		printf("pid is invalid\n");
+		return -1;
+	}
+	else if( queue_no < 0 || queue_no > 4)
+	{
+		printf("queue_no is invalid\n");
+		return -2;
+	}
+
+	int start = multi_queue[queue_no][MLFQ_SIZE];
+	int end = multi_queue[queue_no][MLFQ_SIZE + 1];
+
+	for(int i = start; i != end; i = (i + 1) % MLFQ_SIZE)
+	{
+		if( multi_queue[queue_no][i] == pid)
+		{
+			multi_queue[queue_no][i] = -1;
+      if( i == start)
+      {
+        start = (start + 1) % MLFQ_SIZE;
+        multi_queue[queue_no][MLFQ_SIZE] = start;
+
+        if(start == end)
+        {
+          multi_queue[queue_no][MLFQ_SIZE] = 0;
+          multi_queue[queue_no][MLFQ_SIZE + 1] = 0;
+        }
+      }
+			return 0;
+		}
+	}
+
+	// printf("error: process not found\n");
+	return -3;
+}
+
+int
+is_queue_empty(int queue_no)
+{
+	if( queue_no < 0 || queue_no > 4)
+	{
+		printf("queue_no is invalid\n");
+		return -1;
+	}
+
+	int start = multi_queue[queue_no][MLFQ_SIZE];
+	int end = multi_queue[queue_no][MLFQ_SIZE + 1];
+
+	if( start == -1 || end == -1)
+	{
+		multi_queue[queue_no][MLFQ_SIZE] = 0;
+		multi_queue[queue_no][MLFQ_SIZE+1] = 0;
+	}
+
+	if( start == end)
+		return 1;
+	
+	return 0;
+}
+
+int
+get_curproc_pid(int queue_no)
+{
+	if( queue_no < 0 || queue_no > 4)
+	{
+		printf("queue_no is invalid\n");
+		return -1;
+	}
+
+	int start = multi_queue[queue_no][MLFQ_SIZE];
+
+	if( start == -1)
+	{
+		multi_queue[queue_no][MLFQ_SIZE] = 0;
+		multi_queue[queue_no][MLFQ_SIZE+1] = 0;
+	}
+
+	for( int i = 0; i < MLFQ_SIZE; i++)
+  {
+    if( multi_queue[queue_no][i] != -1)
+    {
+      return multi_queue[queue_no][i];
+    }
+  }
+
+  return -1;
 }

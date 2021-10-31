@@ -77,11 +77,26 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  #if defined RR || defined MLFQ
+  #if defined RR
   if(which_dev == 2 )
     yield();
   #endif
 
+  #ifdef MLFQ
+  if( which_dev == 2 && p->runtime >= (1<<p->queue_no) )
+  {    
+    // printf("p q ");
+    remove_from_queue(p->pid,p->queue_no);
+    if( p->queue_no < 4 )
+      p->queue_no++;  
+    add_to_queue(p->pid,p->queue_no);
+    // printf("time ex pq=%d\n", p->queue_no);
+
+    yield();
+  }
+  #endif
+  // printf("p ");
+  
   usertrapret();
 }
 
@@ -154,9 +169,22 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  #if defined RR || defined MLFQ
+  #ifdef RR
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING )
     yield();
+  #endif
+
+  #ifdef MLFQ   // if the process runs out of its time slice, yield
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING && myproc()->runtime >= (1 << myproc()->queue_no) )
+  {
+    struct proc *p = myproc();
+    remove_from_queue(p->pid,p->queue_no);
+    if( p->queue_no < 4 )
+      p->queue_no++;  
+    add_to_queue(p->pid,p->queue_no);
+
+    yield();
+  }
   #endif
 
   // the yield() may have caused some traps to occur,
@@ -175,9 +203,9 @@ clockintr()
   wakeup(&ticks);
   release(&tickslock);
   
-  #ifdef PBS
+  // #if defined PBS || defined MLFQ
     update_time();
-  #endif
+  // #endif
 }
 
 // check if it's an external interrupt or software interrupt,

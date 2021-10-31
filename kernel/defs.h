@@ -105,6 +105,11 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 
+int             add_to_queue(int pid, int queue_no);
+int             remove_from_queue(int pid, int queue_no);
+int             is_queue_empty(int queue_no);
+int             get_curproc_pid(int queue_no);
+
 int             trace(int );
 int             setpriority(int, int, int);
 uint64          update_time(void);
