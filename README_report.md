@@ -46,7 +46,7 @@
    
 Q. If the processes are I/O bound, then they tend to have shorter CPU bursts. This means that they can finish their CPU time in their time slice and move on the I/O queue, meanwhile, the CPU tends to the CPU bound processes. Then, when the I/O bound processes arrive, they are placed in the _same_ priority queue as before and they can again run for their time slice (by preempting CPU bound processes). 
 
-* **Performance:** Average runtime = 26, wait time = 176. 
+* **Performance:** Average runtime = 0, wait time = 100. 
   
 ## Specification3: ProcDump
 - To implement this for all the schedulers in general, I have maintained a variable rtime in proc struct which calculates the total run time of a process, num_scheduled, giving no of times the process was scheduled, wtime for waiting time. 
